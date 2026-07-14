@@ -33,16 +33,6 @@ static const char *const CONFIG_PATHS[] = {
     NULL,
 };
 
-/* Optional knobs cleared before applying the file so "off" is authoritative. */
-static const char *const OPTIONAL_KEYS[] = {
-    "mesa_glthread", "MESA_NO_ERROR", "GALLIUM_HUD", "LIBGL_ALWAYS_SOFTWARE",
-    "force_glsl_extensions_warn", "allow_higher_compat_version",
-    "allow_glsl_extension_directive_midshader", "MESA_EXTENSION_MAX_YEAR",
-    "MESA_DISK_CACHE_SINGLE_FILE", "MESA_SHADER_CACHE_DISABLE", "vblank_mode",
-    "LIBGL_SHOW_FPS", "POJAV_BIG_CORE_AFFINITY", "FORCE_VSYNC",
-    NULL,
-};
-
 /* Only keys matching one of these prefixes may be set (defence-in-depth). */
 static const char *const ALLOWED_PREFIXES[] = {
     "MESA_", "mesa_", "LIBGL_", "GALLIUM_", "ZINK_", "POJAV_", "FORCE_VSYNC",
@@ -73,9 +63,13 @@ static void apply_config(const char *path) {
     if (!f) return;
 
     LOGI("applying renderer config: %s", path);
-    /* Clear optional knobs so the file is the single source of truth. */
-    for (int i = 0; OPTIONAL_KEYS[i]; i++) unsetenv(OPTIONAL_KEYS[i]);
-
+    /*
+     * set-only: we must NEVER unset a variable the launcher provided. The Pojav
+     * bridge reads some of its own variables with an unguarded strcmp() (e.g.
+     * FORCE_VSYNC), so removing one makes getenv() return NULL and crashes the
+     * launcher in strcmp(). We therefore only ever add/override values, and every
+     * toggle is written explicitly by the settings screen.
+     */
     char line[1024];
     int applied = 0;
     while (fgets(line, sizeof(line), f)) {

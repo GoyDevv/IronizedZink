@@ -139,7 +139,7 @@ data class RenderOptions(
 fun buildEnv(options: RenderOptions): LinkedHashMap<String, String> {
     val env = LinkedHashMap<String, String>()
 
-    // --- Core Ironized Zink selection: Zink + Kopper (always present) ---
+    // --- Core Ironized Zink selection: Zink + Kopper (overrides the manifest baseline) ---
     env["POJAV_RENDERER"] = Zink.RENDERER_ID
     env["LIBGL_ES"] = "3"
     env["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
@@ -147,23 +147,24 @@ fun buildEnv(options: RenderOptions): LinkedHashMap<String, String> {
     env["MESA_GLSL_VERSION_OVERRIDE"] = glslFor(options.glVersion)
 
     // --- Shader / mod compatibility ---
-    if (options.relaxGlsl) {
-        env["force_glsl_extensions_warn"] = "true"
-        env["allow_higher_compat_version"] = "true"
-        env["allow_glsl_extension_directive_midshader"] = "true"
-    }
+    // Emitted explicitly (true/false) because the manifest baseline sets these and the
+    // runtime shim is set-only (it never unsets), so an explicit value is how "off" wins.
+    val relax = if (options.relaxGlsl) "true" else "false"
+    env["force_glsl_extensions_warn"] = relax
+    env["allow_higher_compat_version"] = relax
+    env["allow_glsl_extension_directive_midshader"] = relax
 
-    // --- Performance ---
+    // --- VSync ---
+    // The launcher reads FORCE_VSYNC with strcmp(value, "true"), so use true/false and
+    // always set it (never leave it unset — the launcher's check is not null-safe).
+    env["FORCE_VSYNC"] = if (options.vsync) "true" else "false"
+
+    // --- Performance / diagnostics (not set by the launcher; presence = enabled) ---
     if (options.threadedGl) env["mesa_glthread"] = "true"
     if (options.bigCoreAffinity) env["POJAV_BIG_CORE_AFFINITY"] = "1"
     if (options.noError) env["MESA_NO_ERROR"] = "1"
-    if (options.vsync) env["FORCE_VSYNC"] = "1"
-
-    // --- Shader cache ---
     if (options.singleFileCache) env["MESA_DISK_CACHE_SINGLE_FILE"] = "1"
     if (!options.shaderCache) env["MESA_SHADER_CACHE_DISABLE"] = "true"
-
-    // --- Diagnostics / fallback ---
     if (options.showFps) env["GALLIUM_HUD"] = "fps"
     if (options.forceSoftware) env["LIBGL_ALWAYS_SOFTWARE"] = "1"
 
