@@ -34,12 +34,13 @@ releases — as well as **Sodium/Iris** and shader packs.
 
 - ⚡ **OpenGL 4.6 (GLSL 460)** presented to Minecraft, translated to Vulkan by Zink.
 - 🧩 **Plugin, not a fork** — works alongside your launcher’s other renderers.
-- 🎚️ **Four one-tap presets** — Potato, Performance, Default, Max Compatibility.
-- 🔧 **Full advanced tuning** — GL version, threaded GL, FPS overlay, shader cache,
-  no-error fast path, relaxed GLSL, extension exposure, software fallback.
+- 🎚️ **Four presets that genuinely apply** — Potato, Performance, Default, Max Compatibility.
+- 🔧 **Real, live tuning** — GL version (3.3–4.6), threaded GL, big-core affinity, VSync,
+  no-error fast path, shader disk cache, single-file cache, relaxed GLSL, FPS overlay and
+  software fallback. Settings actually change the game, not just the screen.
 - 📤 **Env export** — copy the exact environment for your launcher’s custom-env field.
 - 📦 **All 4 ABIs** — `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`.
-- 🪶 **Modern UI** — Jetpack Compose + Material 3.
+- 🪶 **Modern UI** — Jetpack Compose + Material 3 (Material You dynamic colour, Lexend).
 
 ## Compatibility
 
@@ -84,6 +85,17 @@ The launcher discovers renderer plugins by scanning installed apps for specific
 At launch the launcher loads the plugin’s native libraries from its `nativeLibraryDir`
 and injects the declared environment. Mesa then loads `libzink_dri.so` via
 `MESA_LOADER_DRIVER_OVERRIDE=zink` and renders OpenGL through Vulkan.
+
+### How presets actually apply
+
+The manifest ships a solid baseline. When you pick a preset or change an option and tap
+**Save**, Ironized Zink writes a small `KEY=VALUE` config to
+`/sdcard/IronizedZink/ironized.env`. The plugin also declares `DLOPEN=libironized_zink.so`
+— the launcher loads this tiny native shim into the **game process** during startup, and
+its constructor applies your saved settings with `setenv()` **before** Mesa initialises.
+That’s why changing the preset or the OpenGL version genuinely changes how the game
+renders. Applying settings needs **All files access** (the same approach MobileGlues uses
+for `/sdcard/MG`); without it, the manifest baseline is used.
 
 ## Building
 

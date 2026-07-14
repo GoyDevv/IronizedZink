@@ -15,6 +15,7 @@ val hasReleaseSigning: Boolean = !signingKeystoreFile.isNullOrBlank() && file(si
 android {
     namespace = "com.goydevv.ironizedzink"
     compileSdk = 37
+    ndkVersion = "25.2.9519653"
 
     defaultConfig {
         applicationId = "com.goydevv.ironizedzink"
@@ -78,9 +79,14 @@ android {
             // Extract .so to the app's nativeLibraryDir so the launcher can
             // dlopen("$nativeLibraryDir/libEGL_mesa.so") etc.
             useLegacyPackaging = true
-            // Our .so are prebuilt & already stripped; never re-strip them
-            // (also avoids requiring the NDK strip tool during release builds).
+            // Our prebuilt Mesa/Zink .so are already stripped; never re-strip them.
             keepDebugSymbols += "**/*.so"
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
         }
     }
 }

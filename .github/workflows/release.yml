@@ -30,10 +30,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept SDK licenses & pre-install platform 37
+      - name: Accept SDK licenses & install platform 37 + NDK/CMake
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-37" > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-37" "ndk;25.2.9519653" "cmake;3.22.1" > /dev/null 2>&1 || true
 
       - name: Decode release keystore
         env:
