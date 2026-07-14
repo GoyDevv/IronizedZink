@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         applicationId = "com.goydevv.ironizedzink"
-        // Native Kopper Zink stack is built for Android 26 (NDK r27d).
+        // Native Zink + Kopper stack is built for Android 26 (NDK r27d).
         minSdk = 26
         targetSdk = 35
         versionCode = 1

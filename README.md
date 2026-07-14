@@ -2,7 +2,7 @@
 
 # Ironized Zink
 
-**A Kopper Zink renderer plugin for Minecraft: Java Edition on Android.**
+**The Ironized Zink renderer plugin for Minecraft: Java Edition on Android — by GoyDevv.**
 
 Desktop **OpenGL 4.6 over Vulkan**, delivered as a drop-in renderer for
 **ZalithLauncher 2** and the **Fold Craft Launcher** family — with built-in

@@ -1,8 +1,11 @@
 # Credits & Attribution
 
-Ironized Zink stands entirely on the shoulders of the open-source graphics community.
-It is a **repackaging and configuration layer** around an existing OpenGL-over-Vulkan
-driver — it does not reimplement any of the rendering technology itself.
+**Ironized Zink** is a project by **GoyDevv**. It stands entirely on the shoulders of the
+open-source graphics community: it is a **repackaging and configuration layer** around an
+existing OpenGL-over-Vulkan driver and does not reimplement any of the rendering
+technology itself. Full credit for the renderer goes to the **Zink / Mesa** authors, and
+to the **Fold Craft Launcher** team for the modified Android Zink build and the
+renderer-plugin interface.
 
 ## The rendering engine — Mesa / Zink / Kopper
 

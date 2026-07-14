@@ -35,7 +35,7 @@
         <!-- Human-readable description shown in the renderer picker -->
         <meta-data
             android:name="des"
-            android:value="Ironized Zink — Kopper Zink, desktop OpenGL 4.6 over Vulkan" />
+            android:value="Ironized Zink — desktop OpenGL 4.6 over Vulkan (by GoyDevv)" />
 
         <!-- Environment for the Pojav launch backend (ZalithLauncher 2 + FCL) -->
         <meta-data

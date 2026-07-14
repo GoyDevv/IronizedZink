@@ -71,7 +71,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.stage.outputs.tag }}"
-          NOTES="Kopper Zink renderer plugin — desktop OpenGL 4.6 over Vulkan.
+          NOTES="Ironized Zink — a renderer plugin by GoyDevv. Desktop OpenGL 4.6 over Vulkan.
 
           Install the APK, then select **Ironized Zink** in your launcher's renderer list (ZalithLauncher 2 / Fold Craft Launcher family). Open the app to choose a preset or fine-tune settings.
 

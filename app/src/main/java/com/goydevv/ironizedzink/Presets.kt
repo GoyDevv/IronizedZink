@@ -1,5 +1,5 @@
 /*
- * Ironized Zink — a Kopper Zink renderer plugin for Minecraft: Java Edition launchers.
+ * Ironized Zink — a renderer plugin (by GoyDevv) for Minecraft: Java Edition launchers.
  *
  * The rendering back-end is the Mesa "Zink" Gallium driver (OpenGL-over-Vulkan) with
  * the Kopper WSI. Mesa is licensed under the MIT license (see assets/licenses).
@@ -8,7 +8,7 @@
 package com.goydevv.ironizedzink
 
 /**
- * Canonical identity of the Kopper Zink renderer as consumed by the launcher.
+ * Canonical identity of the Ironized Zink renderer as consumed by the launcher.
  *
  * These values MUST stay consistent with the `<meta-data>` in AndroidManifest.xml,
  * because the launcher reads the manifest — this object mirrors them so the in-app
@@ -63,7 +63,7 @@ enum class Preset(
         tagline = "Balanced Zink + shaders (recommended)",
         mcVersions = "1.16.x – latest (incl. 26.x)",
         shaders = "Full (Iris / OptiFine)",
-        description = "The proven Kopper Zink profile: desktop OpenGL 4.6 over Vulkan " +
+        description = "The proven Ironized Zink profile: desktop OpenGL 4.6 over Vulkan " +
             "with the compatibility knobs shaders rely on. A great starting point.",
     ),
     MAX_COMPAT(
@@ -152,7 +152,7 @@ data class RenderOptions(
 fun buildEnv(options: RenderOptions): LinkedHashMap<String, String> {
     val env = LinkedHashMap<String, String>()
 
-    // --- Core Kopper Zink selection (must match the manifest baseline) ---
+    // --- Core Ironized Zink selection: Zink + Kopper (must match the manifest baseline) ---
     env["POJAV_RENDERER"] = Zink.RENDERER_ID
     env["LIBGL_ES"] = "3"
     env["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"

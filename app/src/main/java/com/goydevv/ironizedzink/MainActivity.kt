@@ -210,13 +210,18 @@ private fun HeaderCard() {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                "Kopper Zink",
+                "Ironized Zink",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Text(
-                "Desktop OpenGL 4.6 over Vulkan — the Mesa Zink Gallium driver " +
+                "by GoyDevv",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                "Desktop OpenGL 4.6 over Vulkan — built on the Mesa Zink Gallium driver " +
                     "(v${Zink.MESA_VERSION}) with the Kopper WSI.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
