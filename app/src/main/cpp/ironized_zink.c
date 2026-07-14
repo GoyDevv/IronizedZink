@@ -36,7 +36,7 @@ static const char *const CONFIG_PATHS[] = {
 /* Only keys matching one of these prefixes may be set (defence-in-depth). */
 static const char *const ALLOWED_PREFIXES[] = {
     "MESA_", "mesa_", "LIBGL_", "GALLIUM_", "ZINK_", "POJAV_", "FORCE_VSYNC",
-    "force_glsl_", "allow_", "vblank_mode",
+    "force_gl_", "allow_", "vblank_mode",
     NULL,
 };
 

@@ -20,13 +20,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,7 +47,6 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -76,6 +71,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.goydevv.ironizedzink.ui.theme.IronizedZinkTheme
@@ -98,18 +94,21 @@ private val OptionsSaver = mapSaver(
     save = { o ->
         mapOf(
             "gl" to o.glVersion, "tg" to o.threadedGl, "bc" to o.bigCoreAffinity,
-            "vs" to o.vsync, "ne" to o.noError, "sc" to o.shaderCache,
-            "sf" to o.singleFileCache, "rg" to o.relaxGlsl, "fps" to o.showFps,
+            "oo" to o.outOfOrder, "ne" to o.noError, "vs" to o.vsync,
+            "rg" to o.relaxGlsl, "ax" to o.allExtensions, "sc" to o.shaderCache,
+            "sf" to o.singleFileCache, "ld" to o.lazyDescriptors, "iu" to o.inlineUniforms,
             "sw" to o.forceSoftware,
         )
     },
     restore = { m ->
         RenderOptions(
             glVersion = m["gl"] as String, threadedGl = m["tg"] as Boolean,
-            bigCoreAffinity = m["bc"] as Boolean, vsync = m["vs"] as Boolean,
-            noError = m["ne"] as Boolean, shaderCache = m["sc"] as Boolean,
-            singleFileCache = m["sf"] as Boolean, relaxGlsl = m["rg"] as Boolean,
-            showFps = m["fps"] as Boolean, forceSoftware = m["sw"] as Boolean,
+            bigCoreAffinity = m["bc"] as Boolean, outOfOrder = m["oo"] as Boolean,
+            noError = m["ne"] as Boolean, vsync = m["vs"] as Boolean,
+            relaxGlsl = m["rg"] as Boolean, allExtensions = m["ax"] as Boolean,
+            shaderCache = m["sc"] as Boolean, singleFileCache = m["sf"] as Boolean,
+            lazyDescriptors = m["ld"] as Boolean, inlineUniforms = m["iu"] as Boolean,
+            forceSoftware = m["sw"] as Boolean,
         )
     },
 )
@@ -146,14 +145,9 @@ fun IronizedZinkApp() {
     fun requestStorage() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val pkg = Uri.parse("package:${context.packageName}")
-            runCatching {
-                manageStorageLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, pkg))
-            }.onFailure {
-                runCatching { manageStorageLauncher.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
-            }
-        } else {
-            writePermLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        }
+            runCatching { manageStorageLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, pkg)) }
+                .onFailure { runCatching { manageStorageLauncher.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) } }
+        } else writePermLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
 
     Scaffold(
@@ -196,7 +190,6 @@ fun IronizedZinkApp() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { TechCaption() }
-
             if (!storageGranted) item { StorageCard(onGrant = { requestStorage() }) }
 
             item { SectionTitle("Presets") }
@@ -206,11 +199,9 @@ fun IronizedZinkApp() {
                     contentPadding = PaddingValues(vertical = 2.dp),
                 ) {
                     items(Preset.entries, key = { it.name }) { p ->
-                        PresetChip(
-                            preset = p,
-                            selected = p == preset,
-                            onSelect = { presetName = p.name; options = RenderOptions.forPreset(p) },
-                        )
+                        PresetChip(preset = p, selected = p == preset, onSelect = {
+                            presetName = p.name; options = RenderOptions.forPreset(p)
+                        })
                     }
                 }
             }
@@ -219,11 +210,12 @@ fun IronizedZinkApp() {
             item { SectionTitle("Advanced") }
             item { AdvancedCard(options = options, onChange = { options = it }) }
 
-            item { EnvSection(env = buildEnv(options), expanded = showEnv, onToggle = { showEnv = !showEnv }) {
-                clipboard.setText(AnnotatedString(buildEnv(options).toColonEnv()))
-                scope.launch { snackbar.showSnackbar("Environment copied") }
-            } }
-
+            item {
+                EnvSection(env = buildEnv(options), expanded = showEnv, onToggle = { showEnv = !showEnv }) {
+                    clipboard.setText(AnnotatedString(buildEnv(options).toColonEnv()))
+                    scope.launch { snackbar.showSnackbar("Environment copied") }
+                }
+            }
             item { CreditsCard() }
             item { Spacer(Modifier.height(8.dp)) }
         }
@@ -253,17 +245,13 @@ private fun SectionTitle(text: String) {
 
 @Composable
 private fun StorageCard(onGrant: () -> Unit) {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-    ) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Enable in-game settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onTertiaryContainer)
             Text(
-                "To make presets and options actually change the game, Ironized Zink saves a " +
-                    "tiny config to shared storage that the launcher reads at launch. Grant " +
-                    "storage access once to enable this.",
+                "To make presets and options change the game, Ironized Zink saves a tiny config " +
+                    "to shared storage that the launcher reads at launch. Grant storage access once.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
@@ -272,30 +260,67 @@ private fun StorageCard(onGrant: () -> Unit) {
     }
 }
 
+/** Uniform-size, flat (no shadow) category card. */
 @Composable
 private fun PresetChip(preset: Preset, selected: Boolean, onSelect: () -> Unit) {
     val container by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary
+        targetValue = if (selected) MaterialTheme.colorScheme.secondaryContainer
         else MaterialTheme.colorScheme.surfaceContainerHigh,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "chip",
     )
-    val onColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    val scale by animateFloatAsState(if (selected) 1f else 0.95f, Bouncy, label = "chipScale")
+    val scale by animateFloatAsState(if (selected) 1f else 0.97f, Bouncy, label = "chipScale")
+    val border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     Card(
         modifier = Modifier
-            .width(150.dp)
+            .width(178.dp)
+            .height(126.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .selectable(selected = selected, onClick = onSelect),
         colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 6.dp else 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // flat, no shadow
+        border = border,
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(preset.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = onColor)
-            Text(preset.tagline, style = MaterialTheme.typography.labelSmall, color = onColor)
-            if (preset.recommended) {
-                Text("Recommended", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = onColor)
+        Column(Modifier.padding(14.dp).fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(preset.displayName, style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                if (preset.recommended) {
+                    Spacer(Modifier.width(6.dp)); Dot()
+                }
             }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                preset.tagline, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.weight(1f))
+            Pill(preset.highlight, selected)
         }
+    }
+}
+
+@Composable
+private fun Dot() {
+    Surface(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(50)) {
+        Text("★", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+    }
+}
+
+@Composable
+private fun Pill(text: String, selected: Boolean) {
+    Surface(
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -308,20 +333,12 @@ private fun PresetDetails(preset: Preset, customized: Boolean) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(preset.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                if (preset.recommended) { Spacer(Modifier.padding(start = 6.dp)); Badge("Recommended") }
-                if (customized) { Spacer(Modifier.padding(start = 6.dp)); Badge("Customized") }
+                if (preset.recommended) { Spacer(Modifier.width(6.dp)); Badge("Recommended") }
+                if (customized) { Spacer(Modifier.width(6.dp)); Badge("Customized") }
             }
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    preset.expect,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(12.dp),
-                )
+            Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(preset.expect, style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(12.dp))
             }
             Text(preset.description, style = MaterialTheme.typography.bodySmall)
             SpecRow("Minecraft", preset.mcVersions)
@@ -342,14 +359,15 @@ private fun SpecRow(label: String, value: String) {
 @Composable
 private fun Badge(text: String) {
     Surface(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp)) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-        )
+        Text(text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
     }
+}
+
+@Composable
+private fun GroupLabel(text: String) {
+    Text(text.uppercase(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
 }
 
 @Composable
@@ -357,37 +375,41 @@ private fun AdvancedCard(options: RenderOptions, onChange: (RenderOptions) -> Un
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
             Text("OpenGL version", style = MaterialTheme.typography.labelLarge)
-            Text(
-                "Higher = newer Minecraft & shaders. 3.3 is lighter but won't run 1.21+/26.x.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("Higher = newer Minecraft & shaders; 4.6 is best for Sodium on 26.x.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("4.6", "4.5", "4.3", "3.3").forEach { v ->
                     FilterChip(selected = options.glVersion == v, onClick = { onChange(options.copy(glVersion = v)) }, label = { Text(v) })
                 }
             }
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
+            GroupLabel("Performance")
             ToggleRow("Threaded GL", "mesa_glthread — offloads GL to a worker thread; higher FPS", options.threadedGl) { onChange(options.copy(threadedGl = it)) }
             ToggleRow("Big-core affinity", "Pin rendering to the performance CPU cores", options.bigCoreAffinity) { onChange(options.copy(bigCoreAffinity = it)) }
-            ToggleRow("VSync", "On = smooth, tear-free. Off = uncapped, maximum FPS", options.vsync) { onChange(options.copy(vsync = it)) }
+            ToggleRow("Out-of-order drawing", "allow_draw_out_of_order — lets the driver reorder draws; higher FPS", options.outOfOrder) { onChange(options.copy(outOfOrder = it)) }
             ToggleRow("No-error fast path", "MESA_NO_ERROR — skips GL error checks; faster, less safe", options.noError) { onChange(options.copy(noError = it)) }
-            ToggleRow("Shader disk cache", "Cache compiled shaders for faster warm loads", options.shaderCache) { onChange(options.copy(shaderCache = it)) }
-            ToggleRow("Single-file cache", "Store the shader cache as one file (less I/O)", options.singleFileCache) { onChange(options.copy(singleFileCache = it)) }
+            ToggleRow("VSync", "On = smooth & tear-free. Off = uncapped, maximum FPS", options.vsync) { onChange(options.copy(vsync = it)) }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            GroupLabel("Shaders & compatibility")
             ToggleRow("Relaxed GLSL", "Compatibility knobs many shaders & mods rely on", options.relaxGlsl) { onChange(options.copy(relaxGlsl = it)) }
-            ToggleRow("FPS overlay", "GALLIUM_HUD — draw an on-screen frame-rate counter", options.showFps) { onChange(options.copy(showFps = it)) }
-            ToggleRow("Force software", "LIBGL_ALWAYS_SOFTWARE — CPU fallback; last-resort only", options.forceSoftware) { onChange(options.copy(forceSoftware = it)) }
+            ToggleRow("Expose all extensions", "Off caps GL extensions to help a few older mods", options.allExtensions) { onChange(options.copy(allExtensions = it)) }
+            ToggleRow("Shader disk cache", "Cache compiled shaders for faster warm loads & less stutter", options.shaderCache) { onChange(options.copy(shaderCache = it)) }
+            ToggleRow("Single-file cache", "Store the shader cache as one file (less I/O)", options.singleFileCache) { onChange(options.copy(singleFileCache = it)) }
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            GroupLabel("Experimental")
+            ToggleRow("Lazy descriptors", "ZINK_DESCRIPTORS=lazy — lighter descriptor path; can boost FPS", options.lazyDescriptors) { onChange(options.copy(lazyDescriptors = it)) }
+            ToggleRow("Inline uniforms", "ZINK_INLINE_UNIFORMS — inline small uniforms; may help some shaders", options.inlineUniforms) { onChange(options.copy(inlineUniforms = it)) }
+            ToggleRow("Force software", "LIBGL_ALWAYS_SOFTWARE — CPU fallback; last-resort only (very slow)", options.forceSoftware) { onChange(options.copy(forceSoftware = it)) }
         }
     }
 }
 
 @Composable
 private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -397,12 +419,7 @@ private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onToggl
 }
 
 @Composable
-private fun EnvSection(
-    env: LinkedHashMap<String, String>,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onCopy: () -> Unit,
-) {
+private fun EnvSection(env: LinkedHashMap<String, String>, expanded: Boolean, onToggle: () -> Unit, onCopy: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -417,13 +434,9 @@ private fun EnvSection(
                 Column {
                     Spacer(Modifier.height(8.dp))
                     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp)) {
-                        Text(
-                            env.entries.joinToString("\n") { "${it.key}=${it.value}" },
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                        )
+                        Text(env.entries.joinToString("\n") { "${it.key}=${it.value}" },
+                            style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                            modifier = Modifier.padding(12.dp).fillMaxWidth())
                     }
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = onCopy) { Text("Copy for launcher custom-env") }

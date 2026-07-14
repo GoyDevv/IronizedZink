@@ -11,10 +11,3 @@ set(IZ_LINK_OPTS "-Wl,-z,max-page-size=16384" "-Wl,-z,common-page-size=16384")
 add_library(ironized_zink SHARED ironized_zink.c)
 target_link_options(ironized_zink PRIVATE ${IZ_LINK_OPTS})
 target_link_libraries(ironized_zink ${log-lib})
-
-# GL front-end wrapper — forwards glXGetProcAddress to libglxshim and renames the
-# GL_RENDERER string so Minecraft's F3 shows "IronizedZink | OpenGL <version>".
-# Referenced as the renderer's glName in the manifest.
-add_library(ironized_gl SHARED ironized_gl.c)
-target_link_options(ironized_gl PRIVATE ${IZ_LINK_OPTS})
-target_link_libraries(ironized_gl ${log-lib} dl)

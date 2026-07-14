@@ -39,7 +39,8 @@ releases — as well as **Sodium/Iris** and shader packs.
   no-error fast path, shader disk cache, single-file cache, relaxed GLSL, FPS overlay and
   software fallback. Settings actually change the game, not just the screen.
 - 📤 **Env export** — copy the exact environment for your launcher’s custom-env field.
-- 🏷️ **F3 shows `IronizedZink | OpenGL <version>`** — a tiny GL front-end wrapper renames the renderer string (like MobileGlues), without touching the rest of the pipeline.
+- 🏷️ **F3 shows `IronizedZink | OpenGL <version>`** — set through Mesa's `force_gl_renderer`
+  (like MobileGlues), so the debug screen shows Ironized Zink instead of the raw Zink string.
 - 📦 **All 4 ABIs** — `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`.
 - 🪶 **Modern UI** — Jetpack Compose + Material 3 (Material You dynamic colour, Lexend).
 

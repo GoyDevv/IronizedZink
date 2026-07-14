@@ -38,11 +38,10 @@
         <meta-data android:name="fclPlugin" android:value="true" />
         <meta-data android:name="zalithRendererPlugin" android:value="true" />
 
-        <!-- "displayName:glName:eglName" (colon-separated). glName is our GL wrapper,
-             which forwards to libglxshim and renames the F3 renderer string. -->
+        <!-- "displayName:glName:eglName" (colon-separated) -->
         <meta-data
             android:name="renderer"
-            android:value="Ironized Zink:libironized_gl.so:libEGL_mesa.so" />
+            android:value="Ironized Zink:libglxshim.so:libEGL_mesa.so" />
 
         <!-- Human-readable description shown in the renderer picker -->
         <meta-data
@@ -53,12 +52,12 @@
              DLOPEN loads our runtime shim, which applies the user's saved preset. -->
         <meta-data
             android:name="pojavEnv"
-            android:value="POJAV_RENDERER=opengles3_desktopgl_zink_kopper:LIBGL_ES=3:MESA_GL_VERSION_OVERRIDE=4.6:MESA_GLSL_VERSION_OVERRIDE=460:force_glsl_extensions_warn=true:allow_higher_compat_version=true:allow_glsl_extension_directive_midshader=true:MESA_LOADER_DRIVER_OVERRIDE=zink:DLOPEN=libironized_zink.so" />
+            android:value="POJAV_RENDERER=opengles3_desktopgl_zink_kopper:LIBGL_ES=3:MESA_GL_VERSION_OVERRIDE=4.6:MESA_GLSL_VERSION_OVERRIDE=460:force_glsl_extensions_warn=true:allow_higher_compat_version=true:allow_glsl_extension_directive_midshader=true:MESA_LOADER_DRIVER_OVERRIDE=zink:force_gl_renderer=IronizedZink | OpenGL 4.6:force_gl_vendor=GoyDevv:DLOPEN=libironized_zink.so" />
 
         <!-- Environment for the Boat (BoardWalk) launch backend (required by FCL) -->
         <meta-data
             android:name="boatEnv"
-            android:value="POJAV_RENDERER=opengles3_desktopgl_zink_kopper:LIBGL_ES=3:MESA_GL_VERSION_OVERRIDE=4.6:MESA_GLSL_VERSION_OVERRIDE=460:force_glsl_extensions_warn=true:allow_higher_compat_version=true:allow_glsl_extension_directive_midshader=true:MESA_LOADER_DRIVER_OVERRIDE=zink:DLOPEN=libironized_zink.so" />
+            android:value="POJAV_RENDERER=opengles3_desktopgl_zink_kopper:LIBGL_ES=3:MESA_GL_VERSION_OVERRIDE=4.6:MESA_GLSL_VERSION_OVERRIDE=460:force_glsl_extensions_warn=true:allow_higher_compat_version=true:allow_glsl_extension_directive_midshader=true:MESA_LOADER_DRIVER_OVERRIDE=zink:force_gl_renderer=IronizedZink | OpenGL 4.6:force_gl_vendor=GoyDevv:DLOPEN=libironized_zink.so" />
 
         <activity
             android:name=".MainActivity"
