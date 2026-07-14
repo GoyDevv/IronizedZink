@@ -12,6 +12,41 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.IronizedZink"
         tools:targetApi="31">
+
+        <!--
+          ============================================================
+          Ironized Zink — renderer plugin descriptor
+          Read by the launcher via PackageManager.queryIntentActivities
+          + ApplicationInfo.metaData. Compatible with:
+            * Fold Craft Launcher family   (fclPlugin)
+            * ZalithLauncher 2 family       (zalithRendererPlugin)
+          The launcher loads glName/eglName from this app's
+          nativeLibraryDir and injects pojavEnv/boatEnv at launch.
+          ============================================================
+        -->
+        <meta-data android:name="fclPlugin" android:value="true" />
+        <meta-data android:name="zalithRendererPlugin" android:value="true" />
+
+        <!-- "displayName:glName:eglName" (colon-separated) -->
+        <meta-data
+            android:name="renderer"
+            android:value="Ironized Zink:libglxshim.so:libEGL_mesa.so" />
+
+        <!-- Human-readable description shown in the renderer picker -->
+        <meta-data
+            android:name="des"
+            android:value="Ironized Zink — Kopper Zink, desktop OpenGL 4.6 over Vulkan" />
+
+        <!-- Environment for the Pojav launch backend (ZalithLauncher 2 + FCL) -->
+        <meta-data
+            android:name="pojavEnv"
+            android:value="POJAV_RENDERER=opengles3_desktopgl_zink_kopper:LIBGL_ES=3:MESA_GL_VERSION_OVERRIDE=4.6:MESA_GLSL_VERSION_OVERRIDE=460:force_glsl_extensions_warn=true:allow_higher_compat_version=true:allow_glsl_extension_directive_midshader=true:MESA_LOADER_DRIVER_OVERRIDE=zink" />
+
+        <!-- Environment for the Boat (BoardWalk) launch backend (required by FCL) -->
+        <meta-data
+            android:name="boatEnv"
+            android:value="POJAV_RENDERER=opengles3_desktopgl_zink_kopper:LIBGL_ES=3:MESA_GL_VERSION_OVERRIDE=4.6:MESA_GLSL_VERSION_OVERRIDE=460:force_glsl_extensions_warn=true:allow_higher_compat_version=true:allow_glsl_extension_directive_midshader=true:MESA_LOADER_DRIVER_OVERRIDE=zink" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

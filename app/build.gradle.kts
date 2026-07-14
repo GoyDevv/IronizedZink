@@ -12,17 +12,25 @@ android {
 
     defaultConfig {
         applicationId = "com.goydevv.ironizedzink"
-        minSdk = 24
+        // Native Kopper Zink stack is built for Android 26 (NDK r27d).
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        // Only ship the ABIs we actually provide native libraries for.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
     }
 
     buildTypes {
         release {
+            // Keep disabled: shrinking a renderer plugin brings no benefit and
+            // risks stripping the meta-data/entry the launcher relies on.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -30,11 +38,27 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    buildFeatures { compose = true }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    packaging {
+        jniLibs {
+            // Extract .so to the app's nativeLibraryDir so the launcher can
+            // dlopen("$nativeLibraryDir/libEGL_mesa.so") etc.
+            useLegacyPackaging = true
+            // Our .so are prebuilt & already stripped; never re-strip them
+            // (also avoids requiring the NDK strip tool during release builds).
+            keepDebugSymbols += "**/*.so"
+        }
+    }
 }
 
 kotlin {
