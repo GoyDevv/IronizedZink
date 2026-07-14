@@ -41,6 +41,16 @@ jobs:
           java -version
           ./gradlew --version
 
+      - name: Bundle libc++_shared.so (renderer dependency)
+        run: |
+          NDK=$(ls -d "$ANDROID_SDK_ROOT"/ndk/* 2>/dev/null | sort -V | tail -1)
+          SYS="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib"
+          bundle() { if [ -f "$SYS/$1/libc++_shared.so" ]; then cp "$SYS/$1/libc++_shared.so" "app/src/main/jniLibs/$2/" && echo "bundled -> $2"; fi; }
+          bundle aarch64-linux-android arm64-v8a
+          bundle arm-linux-androideabi armeabi-v7a
+          bundle i686-linux-android x86
+          bundle x86_64-linux-android x86_64
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
 

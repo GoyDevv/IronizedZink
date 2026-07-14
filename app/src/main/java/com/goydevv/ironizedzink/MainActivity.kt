@@ -84,7 +84,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { IronizedZinkTheme { IronizedZinkApp() } }
+        setContent {
+            IronizedZinkTheme {
+                var showApp by rememberSaveable { mutableStateOf(false) }
+                if (showApp) IronizedZinkApp() else SetupScreen(onContinue = { showApp = true })
+            }
+        }
     }
 }
 
