@@ -2,6 +2,8 @@
  * Ironized Zink — typography (Lexend variable font).
  * Lexend is licensed under the SIL Open Font License 1.1 (see assets/licenses).
  */
+@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+
 package com.goydevv.ironizedzink.ui.theme
 
 import androidx.compose.material3.Typography

@@ -33,8 +33,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,7 +41,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -53,7 +50,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -136,7 +132,6 @@ fun IronizedZinkApp() {
     val preset = runCatching { Preset.valueOf(presetName) }.getOrDefault(Preset.DEFAULT)
     val dirty = options != savedOptions || presetName != savedPresetName
     val env = buildEnv(options)
-    val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 || dirty } }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -146,9 +141,6 @@ fun IronizedZinkApp() {
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                text = { Text(if (dirty) "Save" else "Saved") },
-                icon = { Icon(Icons.Rounded.Check, contentDescription = null) },
-                expanded = fabExpanded,
                 onClick = {
                     SettingsRepository.save(context, preset, options)
                     SettingsRepository.exportConfig(context, options)
@@ -156,7 +148,9 @@ fun IronizedZinkApp() {
                     savedPresetName = presetName
                     scope.launch { snackbar.showSnackbar("Settings saved & exported") }
                 },
-            )
+            ) {
+                Text(if (dirty) "Save settings" else "Saved")
+            }
         },
     ) { padding ->
         LazyColumn(
