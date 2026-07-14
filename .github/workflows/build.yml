@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -27,7 +31,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept SDK licenses & pre-install platform 36
+      - name: Accept SDK licenses & pre-install platform 37
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-37" > /dev/null 2>&1 || true
@@ -40,27 +44,21 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
-      - name: Locate APK
-        id: apk
+      # This is the real build gate: fail if assembleDebug did not produce an APK.
+      - name: Verify APK
         run: |
           APK=$(find app/build/outputs/apk -name '*.apk' | head -n1)
-          echo "path=$APK" >> "$GITHUB_OUTPUT"
+          if [ -z "$APK" ]; then echo "No APK produced"; exit 1; fi
           echo "Built: $APK"
           ls -lh "$APK"
 
-      - name: Upload APK
+      # Best-effort convenience upload. Never fails the job (the account's Actions
+      # artifact storage may be full — the canonical download is the GitHub Release).
+      - name: Upload APK artifact (best effort)
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ironized-zink-debug
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-      - name: Upload build reports on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-reports
-          path: |
-            app/build/reports/
-            app/build/outputs/logs/
-          if-no-files-found: ignore
+          if-no-files-found: warn
+          retention-days: 7

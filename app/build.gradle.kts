@@ -7,6 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Release signing is driven entirely by environment variables that only exist in the
+// Release workflow (the keystore is stored as a GitHub Actions secret, never committed).
+val signingKeystoreFile: String? = System.getenv("SIGNING_KEYSTORE_FILE")
+val hasReleaseSigning: Boolean = !signingKeystoreFile.isNullOrBlank() && file(signingKeystoreFile).exists()
+
 android {
     namespace = "com.goydevv.ironizedzink"
     compileSdk = 37
@@ -28,11 +33,29 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(signingKeystoreFile!!)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // Keep disabled: shrinking a renderer plugin brings no benefit and
             // risks stripping the meta-data/entry the launcher relies on.
             isMinifyEnabled = false
+            // Use the stable release key when available (CI Release), otherwise fall
+            // back to the debug key so the APK is at least installable.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -78,6 +101,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.animation:animation")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

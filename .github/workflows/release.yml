@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish signed APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses & pre-install platform 37
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-37" > /dev/null 2>&1 || true
+
+      - name: Decode release keystore
+        env:
+          KS_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            echo "::error::SIGNING_KEYSTORE_B64 secret is not set"; exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/ironizedzink-release.jks"
+          echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/ironizedzink-release.jks" >> "$GITHUB_ENV"
+
+      - name: Build signed release APK
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+
+      - name: Stage APK
+        id: stage
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -n1)
+          if [ -z "$APK" ]; then echo "::error::No release APK produced"; exit 1; fi
+          OUT="Ironized-Zink-${TAG}.apk"
+          cp "$APK" "$OUT"
+          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+          ls -lh "$OUT"
+
+      # Release assets are stored separately from Actions artifacts, so this
+      # is not affected by the Actions artifact storage quota.
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.stage.outputs.tag }}"
+          NOTES="Kopper Zink renderer plugin — desktop OpenGL 4.6 over Vulkan.
+
+          Install the APK, then select **Ironized Zink** in your launcher's renderer list (ZalithLauncher 2 / Fold Craft Launcher family). Open the app to choose a preset or fine-tune settings.
+
+          Signed with the stable Ironized Zink release key, so future versions update in place."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.stage.outputs.apk }}" --clobber
+          else
+            gh release create "$TAG" "${{ steps.stage.outputs.apk }}" \
+              --title "Ironized Zink $TAG" \
+              --notes "$NOTES"
+          fi
