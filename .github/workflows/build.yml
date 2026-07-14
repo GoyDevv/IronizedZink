@@ -30,7 +30,7 @@ jobs:
       - name: Accept SDK licenses & pre-install platform 36
         run: |
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-36" > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-37" > /dev/null 2>&1 || true
 
       - name: Print toolchain
         run: |

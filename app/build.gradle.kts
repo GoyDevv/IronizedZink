@@ -2,19 +2,20 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // AGP 9 ships built-in Kotlin support, so the kotlin-android plugin is no longer
+    // applied; only the Compose compiler plugin is needed on top.
     alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace = "com.goydevv.ironizedzink"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.goydevv.ironizedzink"
         // Native Kopper Zink stack is built for Android 26 (NDK r27d).
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
@@ -40,8 +41,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildFeatures {
@@ -62,7 +63,10 @@ android {
 }
 
 kotlin {
-    compilerOptions { jvmTarget = JvmTarget.JVM_21 }
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        optIn.addAll("androidx.compose.material3.ExperimentalMaterial3Api")
+    }
 }
 
 dependencies {
