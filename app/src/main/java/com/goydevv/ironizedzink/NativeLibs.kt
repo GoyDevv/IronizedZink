@@ -28,6 +28,7 @@ object NativeLibs {
         "libglapi.so",
         "libEGL_mesa.so",
         "libglxshim.so",
+        "libironized_gl.so",
         "libzink_dri.so",
         "libironized_zink.so",
     )

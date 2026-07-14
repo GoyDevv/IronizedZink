@@ -36,13 +36,14 @@ enum class Preset(
 ) {
     POTATO(
         displayName = "Potato",
-        tagline = "Maximum FPS on weak devices",
-        mcVersions = "1.8.9 – 1.20.x (vanilla)",
+        tagline = "Absolute maximum FPS",
+        mcVersions = "1.8 → latest (incl. 26.x)",
         shaders = "Not recommended",
-        expect = "Highest FPS · lowest RAM · caps GL at 3.3 (won't run 1.21+/26.x)",
-        description = "Caps OpenGL at 3.3 and strips everything non-essential: threaded " +
-            "GL, big-core affinity, no-error fast path and an uncapped frame rate. " +
-            "Best for low-end GPUs on older, vanilla Minecraft.",
+        expect = "Highest FPS · uncapped · big-core + threaded GL + no-error fast path",
+        description = "Everything tuned for raw frame rate: full OpenGL 4.6 (so Sodium's " +
+            "fast paths work on modern versions too), threaded GL, big-core affinity, the " +
+            "no-error fast path and an uncapped frame rate. Best on weak devices at low " +
+            "render distance without shaders.",
     ),
     PERFORMANCE(
         displayName = "Performance",
@@ -106,7 +107,7 @@ data class RenderOptions(
     companion object {
         fun forPreset(preset: Preset): RenderOptions = when (preset) {
             Preset.POTATO -> RenderOptions(
-                glVersion = "3.3", threadedGl = true, bigCoreAffinity = true, vsync = false,
+                glVersion = "4.6", threadedGl = true, bigCoreAffinity = true, vsync = false,
                 noError = true, shaderCache = true, singleFileCache = true, relaxGlsl = false,
                 showFps = false, forceSoftware = false,
             )

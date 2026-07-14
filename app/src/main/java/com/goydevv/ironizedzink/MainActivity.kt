@@ -27,7 +27,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,7 +36,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
@@ -199,14 +200,21 @@ fun IronizedZinkApp() {
             if (!storageGranted) item { StorageCard(onGrant = { requestStorage() }) }
 
             item { SectionTitle("Presets") }
-            items(Preset.entries, key = { it.name }) { p ->
-                PresetCard(
-                    preset = p,
-                    selected = p == preset,
-                    customized = customized && p == preset,
-                    onSelect = { presetName = p.name; options = RenderOptions.forPreset(p) },
-                )
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp),
+                ) {
+                    items(Preset.entries, key = { it.name }) { p ->
+                        PresetChip(
+                            preset = p,
+                            selected = p == preset,
+                            onSelect = { presetName = p.name; options = RenderOptions.forPreset(p) },
+                        )
+                    }
+                }
             }
+            item { PresetDetails(preset = preset, customized = customized) }
 
             item { SectionTitle("Advanced") }
             item { AdvancedCard(options = options, onChange = { options = it }) }
@@ -265,67 +273,59 @@ private fun StorageCard(onGrant: () -> Unit) {
 }
 
 @Composable
-private fun PresetCard(preset: Preset, selected: Boolean, customized: Boolean, onSelect: () -> Unit) {
+private fun PresetChip(preset: Preset, selected: Boolean, onSelect: () -> Unit) {
     val container by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.secondaryContainer
-        else MaterialTheme.colorScheme.surfaceContainer,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "container",
+        targetValue = if (selected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow), label = "chip",
     )
-    val scale by animateFloatAsState(if (selected) 1f else 0.985f, Bouncy, label = "scale")
-    val elevation by animateDpAsState(if (selected) 8.dp else 0.dp, spring(stiffness = Spring.StiffnessMediumLow), label = "elev")
-    val border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
-
+    val onColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    val scale by animateFloatAsState(if (selected) 1f else 0.95f, Bouncy, label = "chipScale")
     Card(
         modifier = Modifier
-            .fillMaxWidth()
+            .width(150.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .selectable(selected = selected, onClick = onSelect),
         colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
-        border = border,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 6.dp else 0.dp),
     ) {
-        Column(Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(preset.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = onColor)
+            Text(preset.tagline, style = MaterialTheme.typography.labelSmall, color = onColor)
+            if (preset.recommended) {
+                Text("Recommended", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = onColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PresetDetails(preset: Preset, customized: Boolean) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = selected, onClick = onSelect)
-                Column(Modifier.padding(start = 8.dp).weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(preset.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        if (preset.recommended) {
-                            Spacer(Modifier.padding(start = 6.dp))
-                            Badge("Recommended")
-                        }
-                        if (customized) {
-                            Spacer(Modifier.padding(start = 6.dp))
-                            Badge("Customized")
-                        }
-                    }
-                    Text(preset.tagline, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                }
+                Text(preset.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (preset.recommended) { Spacer(Modifier.padding(start = 6.dp)); Badge("Recommended") }
+                if (customized) { Spacer(Modifier.padding(start = 6.dp)); Badge("Customized") }
             }
-            AnimatedVisibility(
-                visible = selected,
-                enter = expandVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
-                exit = shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut(),
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // "What to expect" highlight
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            preset.expect,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(12.dp),
-                        )
-                    }
-                    Text(preset.description, style = MaterialTheme.typography.bodySmall)
-                    SpecRow("Minecraft", preset.mcVersions)
-                    SpecRow("Shaders", preset.shaders)
-                }
+                Text(
+                    preset.expect,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(12.dp),
+                )
             }
+            Text(preset.description, style = MaterialTheme.typography.bodySmall)
+            SpecRow("Minecraft", preset.mcVersions)
+            SpecRow("Shaders", preset.shaders)
         }
     }
 }

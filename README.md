@@ -39,6 +39,7 @@ releases — as well as **Sodium/Iris** and shader packs.
   no-error fast path, shader disk cache, single-file cache, relaxed GLSL, FPS overlay and
   software fallback. Settings actually change the game, not just the screen.
 - 📤 **Env export** — copy the exact environment for your launcher’s custom-env field.
+- 🏷️ **F3 shows `IronizedZink | OpenGL <version>`** — a tiny GL front-end wrapper renames the renderer string (like MobileGlues), without touching the rest of the pipeline.
 - 📦 **All 4 ABIs** — `arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`.
 - 🪶 **Modern UI** — Jetpack Compose + Material 3 (Material You dynamic colour, Lexend).
 
@@ -55,7 +56,7 @@ releases — as well as **Sodium/Iris** and shader packs.
 
 | Preset | Best for | Minecraft | Shaders |
 |--------|----------|-----------|---------|
-| **Potato** | Max FPS on weak devices | 1.8.9 – 1.20.x (vanilla) | Not recommended |
+| **Potato** | Absolute max FPS | 1.8 → latest (incl. 26.x) | Not recommended |
 | **Performance** | High FPS with Sodium | 1.20.x – latest (incl. 26.x) | Light |
 | **Default** | Balanced Zink + shaders *(recommended)* | 1.16.x – latest (incl. 26.x) | Full (Iris/OptiFine) |
 | **Max Compatibility** | Run everything | All versions (1.8 → 26.x) | Full + heavy packs |

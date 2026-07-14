@@ -38,10 +38,11 @@
         <meta-data android:name="fclPlugin" android:value="true" />
         <meta-data android:name="zalithRendererPlugin" android:value="true" />
 
-        <!-- "displayName:glName:eglName" (colon-separated) -->
+        <!-- "displayName:glName:eglName" (colon-separated). glName is our GL wrapper,
+             which forwards to libglxshim and renames the F3 renderer string. -->
         <meta-data
             android:name="renderer"
-            android:value="Ironized Zink:libglxshim.so:libEGL_mesa.so" />
+            android:value="Ironized Zink:libironized_gl.so:libEGL_mesa.so" />
 
         <!-- Human-readable description shown in the renderer picker -->
         <meta-data
