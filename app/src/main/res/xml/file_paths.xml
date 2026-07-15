@@ -2,6 +2,6 @@
 <!-- Exposes the app's cache/updates directory (where downloaded APKs land) via a
      content:// URI so the system package installer can read the file without the
      app granting broader storage access. -->
-<paths xmlns:android="http://schemas.android.com/apk/res-auto">
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="updates" path="updates/" />
 </paths>
