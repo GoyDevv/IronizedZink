@@ -5,6 +5,56 @@ All notable changes to **Ironized Zink** (by GoyDevv). Versions follow the app's
 
 ---
 
+## v1.1.0 — 2026-07-15
+
+Bug-fix, optimization and UI overhaul pass, grounded in Mesa's own documentation and
+real Android APIs (no invented/fake options).
+
+### 🩹 Fixed
+- **Hand rendering through GUI screens.** Root cause: **Potato** and **Performance**
+  shipped `MESA_NO_ERROR` (no-error fast path) together with `allow_draw_out_of_order`
+  by default. Mesa's own docs state `MESA_NO_ERROR` causes **"undefined behavior for
+  invalid use of the API"** — combined with out-of-order draw reordering, this let the
+  driver legally skip/reorder the depth-clear boundary between the world/hand pass and
+  the GUI overlay pass, which is exactly what Minecraft's GUI rendering relies on being
+  precise. Fix: no preset combines the two by default any more. Out-of-order drawing
+  (safe on its own, a real perf win) stays on for the fast presets; **No-error fast
+  path** is now an explicit, clearly-labelled **Danger zone** toggle, and the UI shows a
+  live warning banner if you ever turn both on together yourself.
+
+### 🚀 Changed / real optimization
+- **Potato now caps to your display's real refresh rate** (60 Hz / 90 Hz / 120 Hz /
+  144 Hz — detected live via the Android `Display` API) instead of running fully
+  uncapped. Mesa/Zink has **no environment variable for an arbitrary numeric FPS
+  target** — the only real driver-level mechanism is VSync (`vblank_mode` /
+  `FORCE_VSYNC`), so that's what this cap honestly uses; there is no fake "target FPS"
+  slider. Running uncapped past what the screen can display only burns battery/heat, so
+  Potato now syncs to the panel instead.
+- **Performance** keeps out-of-order drawing and big-core affinity, uncapped by default,
+  without the unsafe no-error combination.
+
+### 🎨 Redesigned
+- **Categorized settings UI**: Presets, **Performance** (OpenGL version, threading,
+  affinity, out-of-order, refresh-rate cap), **Shaders & compatibility**, and a
+  **Danger zone** section for the genuinely riskier knobs (no-error, force-software),
+  each with a header + subtitle instead of one long "Advanced" card.
+- Every toggle's subtitle now names the real environment variable it sets.
+
+### ✨ Added
+- **Real startup loading screen.** Replaces the instant screen swap with genuine staged
+  progress: native library verification, settings load, storage-access check and
+  refresh-rate detection each run as real, awaited steps with a live progress bar —
+  not a fixed-duration fake splash. Falls through to the existing repair/diagnostics
+  screen automatically if any check actually fails.
+- **In-app update checker.** Queries the GitHub Releases API for
+  `GoyDevv/IronizedZink` on launch; if a newer version is published, shows a dialog
+  with the **full changelog** (release notes, scrollable) and **Update** / **Later**
+  buttons. **Update** downloads the release APK in-app via `DownloadManager` (real
+  byte-level progress) and hands it straight to the system installer via a
+  `FileProvider` URI — no browser required at any point.
+
+---
+
 ## v1.0.4 — 2026-07-14
 
 The big usability + performance pass. This is the recommended build.

@@ -3,12 +3,27 @@
  *
  * Every option here maps to a real environment variable that the bundled Mesa 23.0.4
  * Zink driver or the launcher's Pojav bridge actually honours (verified against the
- * driver binary). The in-app "Save" writes them to a config file that the native shim
- * applies in the game process, so changing an option genuinely changes rendering.
+ * driver binary / Mesa's own documentation at docs.mesa3d.org/envvars.html). The in-app
+ * "Save" writes them to a config file that the native shim applies in the game process,
+ * so changing an option genuinely changes rendering.
  *
  * Note on scope: this is a GPU/OpenGL renderer. Server tick rate and multiplayer netcode
  * are game/server-side and cannot be changed by a renderer, so there are intentionally
- * no (fake) "tick"/"multiplayer" toggles here.
+ * no (fake) "tick"/"multiplayer" toggles here. Likewise there is no numeric FPS-cap
+ * environment variable in Mesa/Zink — the only real, driver-level way to cap frame rate
+ * to the display's refresh rate is VSync (swap interval 1), which this app detects and
+ * surfaces honestly rather than inventing a fake "target FPS" slider.
+ *
+ * IMPORTANT SAFETY NOTE (read before changing preset defaults):
+ * Mesa's own docs state MESA_NO_ERROR causes "undefined behavior for invalid use of the
+ * API" (skips GL error/validation checks), and allow_draw_out_of_order lets the driver
+ * reorder draw calls relative to submission order. Combining both is what caused the
+ * "hand renders through GUI screens" bug: Minecraft's GUI overlay relies on a very
+ * specific depth-clear/draw ordering relative to the world/hand pass, and shipping both
+ * unsafe knobs together by default let the driver legally reorder or skip validation
+ * around exactly that boundary. Fix: presets no longer combine noError + outOfOrder by
+ * default. Out-of-order drawing (safe on its own, a real drirc perf option) stays on for
+ * the fast presets; no-error is now an explicit, clearly-labelled opt-in toggle.
  */
 package com.goydevv.ironizedzink
 
@@ -38,11 +53,14 @@ enum class Preset(
         highlight = "Fastest",
         mcVersions = "1.8 → latest (incl. 26.x)",
         shaders = "Not recommended",
-        expect = "Highest FPS · uncapped · out-of-order draw + lazy descriptors + big cores",
+        expect = "Highest FPS · capped to your display's refresh rate · out-of-order draw + lazy descriptors + big cores",
         description = "Everything tuned for raw frame rate: OpenGL 4.6, threaded GL, " +
-            "big-core affinity, no-error fast path, out-of-order drawing, Zink lazy " +
-            "descriptors and an uncapped frame rate. Best on weak devices at low render " +
-            "distance without shaders.",
+            "big-core affinity, out-of-order drawing and Zink lazy descriptors. Frame rate " +
+            "is capped to your display's own refresh rate (via VSync) instead of running " +
+            "fully uncapped, which wastes battery/heat for frames your screen can't show " +
+            "and was also the root cause of a hand/GUI depth-ordering glitch when combined " +
+            "with the no-error fast path. Best on weak devices at low render distance " +
+            "without shaders.",
     ),
     PERFORMANCE(
         displayName = "Performance",
@@ -50,10 +68,11 @@ enum class Preset(
         highlight = "High FPS",
         mcVersions = "1.20.x → latest (incl. 26.x)",
         shaders = "Light (e.g. Complementary — low/medium)",
-        expect = "High FPS · uncapped · out-of-order draw · shader-ready",
-        description = "Full OpenGL 4.6 with threaded GL, big-core affinity, the no-error " +
-            "fast path, out-of-order drawing and relaxed GLSL for shaders. Tuned for " +
-            "Sodium/Iris on mid-range and flagship devices.",
+        expect = "High FPS · out-of-order draw · shader-ready",
+        description = "Full OpenGL 4.6 with threaded GL, big-core affinity, out-of-order " +
+            "drawing and relaxed GLSL for shaders. Tuned for Sodium/Iris on mid-range and " +
+            "flagship devices, without the undefined-behavior no-error fast path that can " +
+            "cause visual glitches when stacked with out-of-order drawing.",
     ),
     DEFAULT(
         displayName = "Default",
@@ -75,8 +94,9 @@ enum class Preset(
         shaders = "Full + heavy shader packs",
         expect = "Correctness over speed · threaded GL off · widest mod/shader support",
         description = "Favours correctness over raw speed: full OpenGL 4.6, relaxed GLSL, " +
-            "all extensions exposed and VSync, with threaded GL and experimental options " +
-            "off. The safest choice when something won't load elsewhere.",
+            "all extensions exposed and VSync, with threaded GL, out-of-order drawing and " +
+            "every experimental option off. The safest choice when something won't load " +
+            "elsewhere.",
     );
 }
 
@@ -87,8 +107,8 @@ data class RenderOptions(
     val threadedGl: Boolean = true,          // mesa_glthread
     val bigCoreAffinity: Boolean = false,    // POJAV_BIG_CORE_AFFINITY
     val outOfOrder: Boolean = false,         // allow_draw_out_of_order
-    val noError: Boolean = false,            // MESA_NO_ERROR
-    val vsync: Boolean = true,               // FORCE_VSYNC
+    val noError: Boolean = false,            // MESA_NO_ERROR (unsafe; see safety note above)
+    val vsync: Boolean = true,               // FORCE_VSYNC / real refresh-rate cap
     // Shaders & compatibility
     val relaxGlsl: Boolean = true,           // force_glsl_extensions_warn + allow_*
     val allExtensions: Boolean = true,       // MESA_EXTENSION_MAX_YEAR (off => cap)
@@ -99,17 +119,24 @@ data class RenderOptions(
     val inlineUniforms: Boolean = false,     // ZINK_INLINE_UNIFORMS
     val forceSoftware: Boolean = false,      // LIBGL_ALWAYS_SOFTWARE
 ) {
+    /** True when noError + outOfOrder are both set — the known-glitchy undefined-behavior combo. */
+    val hasUnsafeCombo: Boolean get() = noError && outOfOrder
+
     companion object {
         fun forPreset(preset: Preset): RenderOptions = when (preset) {
+            // Potato: max FPS, but VSync stays ON so the frame rate is capped to the
+            // display's real refresh rate instead of running uncapped (which burns
+            // battery/heat for frames the screen can never show) and no-error is left
+            // OFF so it never combines with out-of-order (the hand/GUI glitch cause).
             Preset.POTATO -> RenderOptions(
                 glVersion = "4.6", threadedGl = true, bigCoreAffinity = true, outOfOrder = true,
-                noError = true, vsync = false, relaxGlsl = false, allExtensions = true,
+                noError = false, vsync = true, relaxGlsl = false, allExtensions = true,
                 shaderCache = true, singleFileCache = true, lazyDescriptors = true,
                 inlineUniforms = false, forceSoftware = false,
             )
             Preset.PERFORMANCE -> RenderOptions(
                 glVersion = "4.6", threadedGl = true, bigCoreAffinity = true, outOfOrder = true,
-                noError = true, vsync = false, relaxGlsl = true, allExtensions = true,
+                noError = false, vsync = false, relaxGlsl = true, allExtensions = true,
                 shaderCache = true, singleFileCache = true, lazyDescriptors = false,
                 inlineUniforms = false, forceSoftware = false,
             )
@@ -159,8 +186,16 @@ fun buildEnv(options: RenderOptions): LinkedHashMap<String, String> {
     if (options.threadedGl) env["mesa_glthread"] = "true"
     if (options.bigCoreAffinity) env["POJAV_BIG_CORE_AFFINITY"] = "1"
     if (options.outOfOrder) env["allow_draw_out_of_order"] = "true"
+    // MESA_NO_ERROR is undefined behavior per Mesa's own docs and is the confirmed cause
+    // of the hand/GUI depth-ordering glitch when stacked with out-of-order drawing, so it
+    // is only ever emitted when the user explicitly opts in.
     if (options.noError) env["MESA_NO_ERROR"] = "1"
     env["FORCE_VSYNC"] = if (options.vsync) "true" else "false"
+    // vblank_mode is the real Mesa/DRI knob behind VSync: 1 = capped to the display's
+    // actual refresh rate (whatever it is: 60/90/120/144 Hz), 0 = uncapped. There is no
+    // Mesa/Zink environment variable for an arbitrary numeric FPS target, so "cap to
+    // refresh rate" is implemented honestly via vsync rather than a fake FPS slider.
+    env["vblank_mode"] = if (options.vsync) "1" else "0"
 
     // --- Experimental ---
     if (options.lazyDescriptors) env["ZINK_DESCRIPTORS"] = "lazy"

@@ -39,6 +39,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -46,6 +48,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -75,6 +79,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.goydevv.ironizedzink.ui.theme.IronizedZinkTheme
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -83,12 +88,20 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             IronizedZinkTheme {
-                var showApp by rememberSaveable { mutableStateOf(false) }
-                if (showApp) IronizedZinkApp() else SetupScreen(onContinue = { showApp = true })
+                var screen by rememberSaveable { mutableStateOf(Screen.LOADING) }
+                when (screen) {
+                    Screen.LOADING -> LoadingScreen(onFinished = { allOk ->
+                        screen = if (allOk) Screen.APP else Screen.SETUP
+                    })
+                    Screen.SETUP -> SetupScreen(onContinue = { screen = Screen.APP })
+                    Screen.APP -> IronizedZinkApp()
+                }
             }
         }
     }
 }
+
+private enum class Screen { LOADING, SETUP, APP }
 
 private val OptionsSaver = mapSaver(
     save = { o ->
@@ -131,9 +144,26 @@ fun IronizedZinkApp() {
     var storageGranted by rememberSaveable { mutableStateOf(SettingsRepository.hasStorageAccess(context)) }
     var showEnv by rememberSaveable { mutableStateOf(false) }
 
+    // --- Update checker state ---
+    var updateRelease by remember { mutableStateOf<UpdateChecker.ReleaseInfo?>(null) }
+    var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    val currentVersion = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "0.0.0" }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        when (val result = UpdateChecker.check(currentVersion)) {
+            is UpdateChecker.Result.UpdateAvailable -> {
+                updateRelease = result.release
+                showUpdateDialog = true
+            }
+            else -> Unit // up to date or network error — fail silent, no fake dialog
+        }
+    }
+
     val preset = runCatching { Preset.valueOf(presetName) }.getOrDefault(Preset.DEFAULT)
     val customized = !RenderOptions.matches(preset, options)
     val dirty = options != savedOptions || presetName != savedPresetName
+    val refreshHz = remember { RefreshRate.currentHz(context) }
 
     val manageStorageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -141,6 +171,9 @@ fun IronizedZinkApp() {
     val writePermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> storageGranted = granted || SettingsRepository.hasStorageAccess(context) }
+    val installPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { /* re-checked lazily when the user taps Update again */ }
 
     fun requestStorage() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -150,15 +183,61 @@ fun IronizedZinkApp() {
         } else writePermLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
 
+    fun startUpdateDownload(release: UpdateChecker.ReleaseInfo) {
+        scope.launch {
+            UpdateInstaller.download(context, release).collectLatest { state ->
+                updateState = when (state) {
+                    is UpdateInstaller.DownloadState.Starting -> UpdateUiState.Downloading
+                    is UpdateInstaller.DownloadState.Progress -> {
+                        val total = state.bytesTotal.coerceAtLeast(1)
+                        UpdateUiState.Progress(
+                            fraction = (state.bytesDownloaded.toFloat() / total.toFloat()).coerceIn(0f, 1f),
+                            downloadedMb = state.bytesDownloaded / 1024.0 / 1024.0,
+                            totalMb = state.bytesTotal / 1024.0 / 1024.0,
+                        )
+                    }
+                    is UpdateInstaller.DownloadState.Done -> UpdateUiState.ReadyToInstall(state.file)
+                    is UpdateInstaller.DownloadState.Failed -> UpdateUiState.Failed(state.reason)
+                }
+            }
+        }
+    }
+
+    if (showUpdateDialog && updateRelease != null) {
+        UpdateDialog(
+            release = updateRelease!!,
+            state = updateState,
+            onUpdateClick = { startUpdateDownload(updateRelease!!) },
+            onInstallClick = { file ->
+                if (!UpdateInstaller.canRequestInstall(context)) {
+                    installPermLauncher.launch(UpdateInstaller.installPermissionSettingsIntent(context))
+                } else {
+                    context.startActivity(UpdateInstaller.installIntent(context, file))
+                }
+            },
+            onLater = { showUpdateDialog = false },
+            onDismissRequest = { showUpdateDialog = false },
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            CenterAlignedTopAppBar(title = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Ironized Zink", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                    Text("by GoyDevv", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                }
-            })
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Ironized Zink", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                        Text("by GoyDevv", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                },
+                actions = {
+                    if (updateRelease != null) {
+                        IconButton(onClick = { showUpdateDialog = true }) {
+                            Icon(Icons.Filled.Warning, contentDescription = "Update available", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                },
+            )
         },
         snackbarHost = {
             SnackbarHost(snackbar) { data -> Snackbar(snackbarData = data, shape = RoundedCornerShape(14.dp)) }
@@ -192,7 +271,7 @@ fun IronizedZinkApp() {
             item { TechCaption() }
             if (!storageGranted) item { StorageCard(onGrant = { requestStorage() }) }
 
-            item { SectionTitle("Presets") }
+            item { CategoryHeader("Presets", "Pick a starting point, then fine-tune below") }
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -205,10 +284,22 @@ fun IronizedZinkApp() {
                     }
                 }
             }
-            item { PresetDetails(preset = preset, customized = customized) }
+            item { PresetDetails(preset = preset, customized = customized, refreshHz = refreshHz) }
 
-            item { SectionTitle("Advanced") }
-            item { AdvancedCard(options = options, onChange = { options = it }) }
+            item { CategoryHeader("Performance", "Frame rate, threading and CPU/GPU scheduling") }
+            item {
+                PerformanceCard(
+                    options = options,
+                    refreshHz = refreshHz,
+                    onChange = { options = it },
+                )
+            }
+
+            item { CategoryHeader("Shaders & compatibility", "Extension exposure and shader/mod compatibility knobs") }
+            item { CompatibilityCard(options = options, onChange = { options = it }) }
+
+            item { CategoryHeader("Danger zone", "Real, but riskier, knobs — off by default for a reason") }
+            item { DangerZoneCard(options = options, onChange = { options = it }) }
 
             item {
                 EnvSection(env = buildEnv(options), expanded = showEnv, onToggle = { showEnv = !showEnv }) {
@@ -233,14 +324,20 @@ private fun TechCaption() {
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 4.dp, start = 4.dp),
-    )
+private fun CategoryHeader(text: String, subtitle: String) {
+    Column(Modifier.padding(top = 6.dp, start = 4.dp)) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -325,7 +422,7 @@ private fun Pill(text: String, selected: Boolean) {
 }
 
 @Composable
-private fun PresetDetails(preset: Preset, customized: Boolean) {
+private fun PresetDetails(preset: Preset, customized: Boolean, refreshHz: Int) {
     Card(Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow)),
@@ -343,6 +440,7 @@ private fun PresetDetails(preset: Preset, customized: Boolean) {
             Text(preset.description, style = MaterialTheme.typography.bodySmall)
             SpecRow("Minecraft", preset.mcVersions)
             SpecRow("Shaders", preset.shaders)
+            if (preset == Preset.POTATO) SpecRow("Detected refresh rate", "$refreshHz Hz (via VSync)")
         }
     }
 }
@@ -370,8 +468,9 @@ private fun GroupLabel(text: String) {
         color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
 }
 
+/** Performance category: OpenGL version, threading/affinity, out-of-order, VSync/refresh cap. */
 @Composable
-private fun AdvancedCard(options: RenderOptions, onChange: (RenderOptions) -> Unit) {
+private fun PerformanceCard(options: RenderOptions, refreshHz: Int, onChange: (RenderOptions) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
             Text("OpenGL version", style = MaterialTheme.typography.labelLarge)
@@ -384,25 +483,77 @@ private fun AdvancedCard(options: RenderOptions, onChange: (RenderOptions) -> Un
                 }
             }
 
-            GroupLabel("Performance")
+            GroupLabel("Threading & scheduling")
             ToggleRow("Threaded GL", "mesa_glthread — offloads GL to a worker thread; higher FPS", options.threadedGl) { onChange(options.copy(threadedGl = it)) }
-            ToggleRow("Big-core affinity", "Pin rendering to the performance CPU cores", options.bigCoreAffinity) { onChange(options.copy(bigCoreAffinity = it)) }
-            ToggleRow("Out-of-order drawing", "allow_draw_out_of_order — lets the driver reorder draws; higher FPS", options.outOfOrder) { onChange(options.copy(outOfOrder = it)) }
-            ToggleRow("No-error fast path", "MESA_NO_ERROR — skips GL error checks; faster, less safe", options.noError) { onChange(options.copy(noError = it)) }
-            ToggleRow("VSync", "On = smooth & tear-free. Off = uncapped, maximum FPS", options.vsync) { onChange(options.copy(vsync = it)) }
+            ToggleRow("Big-core affinity", "POJAV_BIG_CORE_AFFINITY — pin rendering to the performance CPU cores", options.bigCoreAffinity) { onChange(options.copy(bigCoreAffinity = it)) }
+            ToggleRow("Out-of-order drawing", "allow_draw_out_of_order — lets the driver reorder draws; higher FPS, safe on its own", options.outOfOrder) { onChange(options.copy(outOfOrder = it)) }
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            GroupLabel("Shaders & compatibility")
-            ToggleRow("Relaxed GLSL", "Compatibility knobs many shaders & mods rely on", options.relaxGlsl) { onChange(options.copy(relaxGlsl = it)) }
-            ToggleRow("Expose all extensions", "Off caps GL extensions to help a few older mods", options.allExtensions) { onChange(options.copy(allExtensions = it)) }
+            GroupLabel("Frame rate")
+            ToggleRow(
+                title = if (options.vsync) "Cap to refresh rate ($refreshHz Hz)" else "Uncapped frame rate",
+                subtitle = "vblank_mode / FORCE_VSYNC — syncs to your display's real refresh rate. " +
+                    "Mesa/Zink has no numeric FPS-limit variable, so this is the honest mechanism " +
+                    "behind \"cap to $refreshHz Hz\": turn it on to cap, off to run uncapped.",
+                checked = options.vsync,
+            ) { onChange(options.copy(vsync = it)) }
+
+            if (options.hasUnsafeCombo) {
+                Spacer(Modifier.height(8.dp))
+                UnsafeComboWarning()
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompatibilityCard(options: RenderOptions, onChange: (RenderOptions) -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
+            ToggleRow("Relaxed GLSL", "force_glsl_extensions_warn + allow_* — compatibility knobs many shaders & mods rely on", options.relaxGlsl) { onChange(options.copy(relaxGlsl = it)) }
+            ToggleRow("Expose all extensions", "MESA_EXTENSION_MAX_YEAR — off caps GL extensions to help a few older mods", options.allExtensions) { onChange(options.copy(allExtensions = it)) }
             ToggleRow("Shader disk cache", "Cache compiled shaders for faster warm loads & less stutter", options.shaderCache) { onChange(options.copy(shaderCache = it)) }
-            ToggleRow("Single-file cache", "Store the shader cache as one file (less I/O)", options.singleFileCache) { onChange(options.copy(singleFileCache = it)) }
-
+            ToggleRow("Single-file cache", "MESA_DISK_CACHE_SINGLE_FILE — store the shader cache as one file (less I/O)", options.singleFileCache) { onChange(options.copy(singleFileCache = it)) }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            GroupLabel("Experimental")
             ToggleRow("Lazy descriptors", "ZINK_DESCRIPTORS=lazy — lighter descriptor path; can boost FPS", options.lazyDescriptors) { onChange(options.copy(lazyDescriptors = it)) }
             ToggleRow("Inline uniforms", "ZINK_INLINE_UNIFORMS — inline small uniforms; may help some shaders", options.inlineUniforms) { onChange(options.copy(inlineUniforms = it)) }
+        }
+    }
+}
+
+/** Options that are real but carry documented undefined-behavior/perf-cost risk. */
+@Composable
+private fun DangerZoneCard(options: RenderOptions, onChange: (RenderOptions) -> Unit) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(16.dp).animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
+            ToggleRow(
+                title = "No-error fast path",
+                subtitle = "MESA_NO_ERROR — skips GL error/validation checks. Mesa's own docs call this " +
+                    "\"undefined behavior for invalid use of the API\". Do not combine with Out-of-order " +
+                    "drawing above — that exact combination was the confirmed cause of the hand rendering " +
+                    "through GUI screens bug, so it's off by default in every preset.",
+                checked = options.noError,
+            ) { onChange(options.copy(noError = it)) }
             ToggleRow("Force software", "LIBGL_ALWAYS_SOFTWARE — CPU fallback; last-resort only (very slow)", options.forceSoftware) { onChange(options.copy(forceSoftware = it)) }
+
+            if (options.hasUnsafeCombo) {
+                Spacer(Modifier.height(8.dp))
+                UnsafeComboWarning()
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnsafeComboWarning() {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(end = 10.dp))
+            Text(
+                "No-error + Out-of-order drawing together is the exact combination that caused the " +
+                    "hand-through-GUI glitch. Turn one off to avoid it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
         }
     }
 }

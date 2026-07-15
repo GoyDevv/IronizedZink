@@ -35,9 +35,18 @@ releases — as well as **Sodium/Iris** and shader packs.
 - ⚡ **OpenGL 4.6 (GLSL 460)** presented to Minecraft, translated to Vulkan by Zink.
 - 🧩 **Plugin, not a fork** — works alongside your launcher’s other renderers.
 - 🎚️ **Four presets that genuinely apply** — Potato, Performance, Default, Max Compatibility.
-- 🔧 **Real, live tuning** — GL version (3.3–4.6), threaded GL, big-core affinity, VSync,
-  no-error fast path, shader disk cache, single-file cache, relaxed GLSL, FPS overlay and
-  software fallback. Settings actually change the game, not just the screen.
+- 🔧 **Real, live tuning** — GL version (3.3–4.6), threaded GL, big-core affinity,
+  refresh-rate-synced frame cap, no-error fast path (opt-in, clearly labelled), shader
+  disk cache, single-file cache, relaxed GLSL and software fallback. Settings actually
+  change the game, not just the screen.
+- 🩹 **Hand-through-GUI bug fixed** — Potato/Performance no longer combine the no-error
+  fast path with out-of-order drawing, the confirmed cause (per Mesa's own docs) of that
+  glitch; it's now an explicit opt-in with an in-app warning.
+- 🖥️ **Potato caps to your display's real refresh rate** (60/90/120/144 Hz, detected
+  live) instead of running uncapped — there's no Mesa/Zink numeric FPS-limit variable,
+  so this uses the real VSync mechanism honestly rather than a fake slider.
+- 🔔 **In-app update checker** — checks GitHub Releases on launch; shows the full
+  changelog and downloads + installs updates in-app, no browser needed.
 - 📤 **Env export** — copy the exact environment for your launcher’s custom-env field.
 - 🏷️ **F3 shows `IronizedZink | OpenGL <version>`** — set through Mesa's `force_gl_renderer`
   (like MobileGlues), so the debug screen shows Ironized Zink instead of the raw Zink string.
