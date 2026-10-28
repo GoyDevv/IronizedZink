@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home
+      GRADLE_USER_HOME: ${{ github.workspace }}/.ci-gradle-home
       PROJECT_DIR: ci-lab/forge-1.20.1-template
-      BUNDLE_DIR: ${{ runner.temp }}/offline-forge-bundle
-      OFFLINE_ARCHIVE: ${{ runner.temp }}/offline-forge-1.20.1-linux-x64.tar.gz
+      BUNDLE_DIR: ${{ github.workspace }}/offline-forge-bundle
+      OFFLINE_ARCHIVE: ${{ github.workspace }}/offline-forge-1.20.1-linux-x64.tar.gz
 
     steps:
       - name: Check out experiment branch
@@ -87,7 +87,7 @@ jobs:
           EOF
 
           # Validate that the archived environment can rebuild after extraction, without fetching dependencies.
-          tar -czf "$OFFLINE_ARCHIVE" -C "$RUNNER_TEMP" "$(basename "$BUNDLE_DIR")"
+          tar -czf "$OFFLINE_ARCHIVE" -C "$GITHUB_WORKSPACE" "$(basename "$BUNDLE_DIR")"
           mkdir -p "$RUNNER_TEMP/offline-verify"
           tar -xzf "$OFFLINE_ARCHIVE" -C "$RUNNER_TEMP/offline-verify"
           VERIFY_DIR="$RUNNER_TEMP/offline-verify/$(basename "$BUNDLE_DIR")"
