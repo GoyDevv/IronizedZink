@@ -1,0 +1,75 @@
+name: Split Forge offline bundle for download
+
+on:
+  push:
+    branches:
+      - experiment/repackage-forge-artifact
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  split-artifact:
+    name: Repackage existing build artifact into download-sized pieces
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out experiment branch
+        uses: actions/checkout@v4
+
+      - name: Download the already-built artifact from run 40773302388
+        uses: actions/download-artifact@v4
+        with:
+          name: forge-1.20.1-template-offline-build
+          path: downloaded
+          repository: ${{ github.repository }}
+          run-id: 40773302388
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Split the offline bundle into parts below 512 MiB
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s downloaded/offline-forge-1.20.1-linux-x64.tar.gz
+          mkdir -p parts
+          split -b 350M -d -a 2 downloaded/offline-forge-1.20.1-linux-x64.tar.gz parts/offline-forge-part-
+          cp downloaded/examplemod-1.0.0.jar parts/
+          cp downloaded/README-forge-template.md parts/
+          (cd parts && sha256sum offline-forge-part-* > PARTS-SHA256SUMS.txt)
+          ls -lh parts/
+
+      - name: Upload offline bundle part 00
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-offline-bundle-part-00
+          path: parts/offline-forge-part-00
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload offline bundle part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-offline-bundle-part-01
+          path: parts/offline-forge-part-01
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload offline bundle part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-offline-bundle-part-02
+          path: parts/offline-forge-part-02
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload the built mod JAR and part manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-1.20.1-mod-and-manifest
+          path: |
+            parts/examplemod-1.0.0.jar
+            parts/README-forge-template.md
+            parts/PARTS-SHA256SUMS.txt
+          compression-level: 0
+          retention-days: 7
