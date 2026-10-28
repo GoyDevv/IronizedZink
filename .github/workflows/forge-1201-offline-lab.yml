@@ -1,0 +1,111 @@
+name: Forge 1.20.1 template and offline toolchain
+
+on:
+  push:
+    branches:
+      - experiment/forge-1.20.1-offline
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forge-1201-offline-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build mod and portable offline bundle
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home
+      PROJECT_DIR: ci-lab/forge-1.20.1-template
+      BUNDLE_DIR: ${{ runner.temp }}/offline-forge-bundle
+      OFFLINE_ARCHIVE: ${{ runner.temp }}/offline-forge-1.20.1-linux-x64.tar.gz
+
+    steps:
+      - name: Check out experiment branch
+        uses: actions/checkout@v4
+
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download Gradle 8.8
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 4 --retry-delay 2 \
+            https://services.gradle.org/distributions/gradle-8.8-bin.zip \
+            --output "$RUNNER_TEMP/gradle-8.8-bin.zip"
+          unzip -q "$RUNNER_TEMP/gradle-8.8-bin.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-8.8/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gradle-8.8/bin/gradle" --version
+
+      - name: Generate Gradle wrapper
+        working-directory: ci-lab/forge-1.20.1-template
+        run: gradle wrapper --gradle-version 8.8 --distribution-type bin
+
+      - name: Build mod with network access
+        working-directory: ci-lab/forge-1.20.1-template
+        run: ./gradlew --no-daemon build --stacktrace
+
+      - name: Rebuild once using Gradle offline mode
+        working-directory: ci-lab/forge-1.20.1-template
+        run: ./gradlew --offline --no-daemon clean build --stacktrace
+
+      - name: Assemble portable JDK, Gradle, source, wrapper and caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$BUNDLE_DIR/jdk" "$BUNDLE_DIR/gradle-user-home" "$BUNDLE_DIR/project" artifacts
+
+          # Preserve the runnable toolchain and dependency caches for a later offline build.
+          cp -a "$JAVA_HOME/." "$BUNDLE_DIR/jdk/"
+          cp -a "$RUNNER_TEMP/gradle-8.8" "$BUNDLE_DIR/gradle"
+          cp -a "$GRADLE_USER_HOME/." "$BUNDLE_DIR/gradle-user-home/"
+          cp -a "$PROJECT_DIR/." "$BUNDLE_DIR/project/"
+          rm -rf "$BUNDLE_DIR/project/build" "$BUNDLE_DIR/project/.gradle"
+
+          cat > "$BUNDLE_DIR/OFFLINE-README.txt" <<'EOF'
+          Forge 1.20.1 offline build bundle (Linux x86_64)
+
+          Requirements: a Linux x86_64 environment with tar and enough disk space.
+          This bundle includes a JDK 17, Gradle 8.8, the template source and Gradle/Forge caches.
+          It does not include the Minecraft game client or a launcher.
+
+          From the extracted bundle directory, run:
+            export JAVA_HOME="$PWD/jdk"
+            export PATH="$JAVA_HOME/bin:$PATH"
+            export GRADLE_USER_HOME="$PWD/gradle-user-home"
+            "$PWD/gradle/bin/gradle" --offline --no-daemon -p "$PWD/project" clean build
+
+          The mod JAR will be written to project/build/libs/.
+          EOF
+
+          # Validate that the archived environment can rebuild after extraction, without fetching dependencies.
+          tar -czf "$OFFLINE_ARCHIVE" -C "$RUNNER_TEMP" "$(basename "$BUNDLE_DIR")"
+          mkdir -p "$RUNNER_TEMP/offline-verify"
+          tar -xzf "$OFFLINE_ARCHIVE" -C "$RUNNER_TEMP/offline-verify"
+          VERIFY_DIR="$RUNNER_TEMP/offline-verify/$(basename "$BUNDLE_DIR")"
+          export JAVA_HOME="$VERIFY_DIR/jdk"
+          export PATH="$JAVA_HOME/bin:$VERIFY_DIR/gradle/bin:$PATH"
+          export GRADLE_USER_HOME="$VERIFY_DIR/gradle-user-home"
+          "$VERIFY_DIR/gradle/bin/gradle" --offline --no-daemon -p "$VERIFY_DIR/project" clean build --stacktrace
+
+          cp "$PROJECT_DIR/build/libs/examplemod-1.0.0.jar" artifacts/
+          cp "$OFFLINE_ARCHIVE" artifacts/
+          cp "$PROJECT_DIR/README.md" artifacts/README-forge-template.md
+          (cd artifacts && sha256sum *.jar *.tar.gz README-forge-template.md > SHA256SUMS.txt)
+
+      - name: Upload mod JAR and offline environment bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-1.20.1-template-offline-build
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7
